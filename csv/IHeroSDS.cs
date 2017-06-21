@@ -1,12 +1,20 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
+﻿using System.Collections.Generic;
 
-namespace TimeWarLib.csv
+public enum SplashType
 {
-    public interface IHeroSDS
-    {
+    NO_SPLASH,
+    SPLASH_OTHER_TARGETS,
+    SPLASH_TARGET_POS
+}
 
-    }
+public interface IHeroSDS
+{
+    int GetCost();
+    int GetHp();
+    int GetAttack();
+    int GetMove();
+    KeyValuePair<int, int>[] GetStopAttackPos();
+    KeyValuePair<int, int>[] GetTargetPos();
+    SplashType GetSplashType();
+    KeyValuePair<int, int>[] GetSplashPos();
 }
