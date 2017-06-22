@@ -58,9 +58,11 @@
   <ItemGroup>
     <Compile Include="Battle.cs" />
     <Compile Include="BattleConst.cs" />
+    <Compile Include="collectionTools\CollectionTools.cs" />
     <Compile Include="csv\IHeroSDS.cs" />
-    <Compile Include="csv\IMagicSDS.cs" />
+    <Compile Include="csv\ISpellSDS.cs" />
     <Compile Include="csv\IRoundSDS.cs" />
+    <Compile Include="Hero.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
