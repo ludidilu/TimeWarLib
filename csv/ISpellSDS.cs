@@ -1,6 +1,6 @@
 ﻿using System.Collections.Generic;
 
-public interface IMagicSDS
+public interface ISpellSDS
 {
     int GetCost();
     bool GetTargetEnemy();
