@@ -33,12 +33,20 @@ namespace TimeWarLib
 
         private Battle battle;
 
-        internal Hero(Battle _battle, bool _isMine, IHeroSDS _sds, KeyValuePair<int, int> _pos)
+        internal Hero(Battle _battle, bool _isMine, IHeroSDS _sds, int _posX)
         {
             isMine = _isMine;
             sds = _sds;
             nowHp = _sds.GetHp();
-            pos = _pos;
+
+            if (isMine)
+            {
+                pos = new KeyValuePair<int, int>(_posX, 0);
+            }
+            else
+            {
+                pos = new KeyValuePair<int, int>(_posX, BattleConst.mapWidth - 1);
+            }
         }
 
         internal void Move()
