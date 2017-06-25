@@ -9,7 +9,6 @@ public enum SplashType
 
 public interface IHeroSDS
 {
-    int GetCost();
     int GetHp();
     int GetAttack();
     int GetMove();

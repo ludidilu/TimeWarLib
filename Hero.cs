@@ -1,106 +1,127 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
+﻿using System.Collections.Generic;
 
 namespace TimeWarLib
 {
     public class Hero
     {
         public IHeroSDS sds { private set; get; }
+
         public int nowHp { private set; get; }
 
-        public KeyValuePair<int, int> pos { private set; get; }
+        public int x { private set; get; }
+
+        public int y { private set; get; }
+
+        public int pos
+        {
+            get
+            {
+                return x * BattleConst.mapWidth + y;
+            }
+        }
+
+        public bool isMine { private set; get; }
 
         private int fix;
 
-        private bool m_isMine;
+        private int moveNum;
 
-        public bool isMine
-        {
-            private set
-            {
-                m_isMine = value;
-
-                fix = m_isMine ? 1 : -1;
-            }
-
-            get
-            {
-                return m_isMine;
-            }
-        }
-
-        private Battle battle;
-
-        internal Hero(Battle _battle, bool _isMine, IHeroSDS _sds, int _posX)
+        internal void Init(bool _isMine, IHeroSDS _sds, int _x)
         {
             isMine = _isMine;
+
+            fix = isMine ? 1 : -1;
+
             sds = _sds;
+
+            x = _x;
+
+            y = isMine ? 0 : BattleConst.mapWidth - 1;
+
             nowHp = _sds.GetHp();
 
-            if (isMine)
-            {
-                pos = new KeyValuePair<int, int>(_posX, 0);
-            }
-            else
-            {
-                pos = new KeyValuePair<int, int>(_posX, BattleConst.mapWidth - 1);
-            }
+            moveNum = sds.GetMove();
         }
 
-        internal void Move()
+        internal void Init(bool _isMine, IHeroSDS _sds, int _x, int _y, int _nowHp)
+        {
+            isMine = _isMine;
+
+            fix = isMine ? 1 : -1;
+
+            sds = _sds;
+
+            x = _x;
+
+            y = _y;
+
+            nowHp = _nowHp;
+
+            moveNum = sds.GetMove();
+        }
+
+        internal void Move(Hero[][] _heroMap, Dictionary<int, Hero> _heroDic)
         {
             int posY = -1;
 
-            for (int i = 0; i < sds.GetMove(); i++)
+            int i = 1;
+
+            while (moveNum > 0)
             {
-                int y = pos.Value + (i + i) * fix;
+                int tmpY = y + i * fix;
 
-                if (y < 0 || y >= BattleConst.mapWidth)
+                if (tmpY < 0 || tmpY >= BattleConst.mapWidth)
                 {
                     break;
                 }
 
-                if (battle.heroMap[pos.Key][y] != null)
+                if (_heroMap[x][tmpY] != null)
                 {
                     break;
                 }
 
-                posY = y;
+                posY = tmpY;
+
+                moveNum--;
+
+                i++;
             }
 
             if (posY != -1)
             {
-                battle.heroMap[pos.Key][pos.Value] = null;
+                _heroMap[x][y] = null;
 
-                battle.heroMap[pos.Key][posY] = this;
+                _heroDic.Remove(pos);
 
-                pos = new KeyValuePair<int, int>(pos.Key, posY);
+                y = posY;
+
+                _heroMap[x][y] = this;
+
+                _heroDic.Add(pos, this);
             }
         }
 
-        internal void Attack()
+        internal void Attack(Hero[][] _heroMap)
         {
             for (int i = 0; i < sds.GetStopAttackPos().Length; i++)
             {
                 KeyValuePair<int, int> pair = sds.GetStopAttackPos()[i];
 
-                int x = pos.Key + pair.Key * fix;
+                int tmpX = x + pair.Key * fix;
 
-                if (x < 0 || x >= BattleConst.mapHeight)
+                if (tmpX < 0 || tmpX >= BattleConst.mapHeight)
                 {
                     continue;
                 }
 
-                int y = pos.Value + pair.Value * fix;
+                int tmpY = x + pair.Value * fix;
 
-                if (y < 0 || y >= BattleConst.mapWidth)
+                if (tmpY < 0 || tmpY >= BattleConst.mapWidth)
                 {
                     continue;
                 }
 
-                Hero tmpHero = battle.heroMap[x][y];
+                Hero tmpHero = _heroMap[tmpX][tmpY];
 
                 if (tmpHero != null && tmpHero.isMine != isMine)
                 {
@@ -114,21 +135,21 @@ namespace TimeWarLib
             {
                 KeyValuePair<int, int> pair = sds.GetTargetPos()[i];
 
-                int x = pos.Key + pair.Key * fix;
+                int tmpX = x + pair.Key * fix;
 
-                if (x < 0 || x >= BattleConst.mapHeight)
+                if (tmpX < 0 || tmpX >= BattleConst.mapHeight)
                 {
                     continue;
                 }
 
-                int y = pos.Value + pair.Value * fix;
+                int tmpY = y + pair.Value * fix;
 
-                if (y < 0 || y >= BattleConst.mapWidth)
+                if (tmpY < 0 || tmpY >= BattleConst.mapWidth)
                 {
                     continue;
                 }
 
-                Hero tmpHero = battle.heroMap[x][y];
+                Hero tmpHero = _heroMap[tmpX][tmpY];
 
                 if (tmpHero != null && tmpHero.isMine != isMine)
                 {
@@ -149,21 +170,21 @@ namespace TimeWarLib
                 {
                     KeyValuePair<int, int> pair = sds.GetSplashPos()[i];
 
-                    int x = targetHero.pos.Key + pair.Key * fix;
+                    int tmpX = targetHero.x + pair.Key * fix;
 
-                    if (x < 0 || x >= BattleConst.mapHeight)
+                    if (tmpX < 0 || tmpX >= BattleConst.mapHeight)
                     {
                         continue;
                     }
 
-                    int y = targetHero.pos.Value + pair.Value * fix;
+                    int tmpY = targetHero.y + pair.Value * fix;
 
-                    if (y < 0 || y >= BattleConst.mapWidth)
+                    if (tmpY < 0 || tmpY >= BattleConst.mapWidth)
                     {
                         continue;
                     }
 
-                    Hero tmpHero = battle.heroMap[x][y];
+                    Hero tmpHero = _heroMap[tmpX][tmpY];
 
                     if (tmpHero != null && tmpHero.isMine != isMine)
                     {
@@ -181,6 +202,20 @@ namespace TimeWarLib
         internal void Die()
         {
 
+        }
+
+        internal void Recover()
+        {
+            moveNum = sds.GetMove();
+        }
+
+        internal Hero Clone()
+        {
+            Hero hero = new Hero();
+
+            hero.Init(isMine, sds, x, y, nowHp);
+
+            return hero;
         }
     }
 }

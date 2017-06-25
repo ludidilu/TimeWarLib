@@ -58,7 +58,9 @@
   <ItemGroup>
     <Compile Include="Battle.cs" />
     <Compile Include="BattleConst.cs" />
+    <Compile Include="BattleCore.cs" />
     <Compile Include="collectionTools\CollectionTools.cs" />
+    <Compile Include="csv\ICardSDS.cs" />
     <Compile Include="csv\IHeroSDS.cs" />
     <Compile Include="csv\ISpellSDS.cs" />
     <Compile Include="csv\IRoundSDS.cs" />

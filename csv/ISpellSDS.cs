@@ -2,7 +2,6 @@
 
 public interface ISpellSDS
 {
-    int GetCost();
     bool GetTargetEnemy();
     KeyValuePair<int, int>[] GetTargetPos();
     SplashType GetSplashType();

@@ -1,27 +1,25 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 
 namespace TimeWarLib
 {
+    public enum State
+    {
+        N,
+        M,
+        O
+    }
+
     public class Battle
     {
-        enum ActionState
-        {
-            NO_ACTIONED,
-            M_ACTIONED,
-            O_ACTIONED
-        }
-
-        internal static Func<int, IRoundSDS> getRoundData;
-        internal static Func<int, ICardSDS> getCardData;
-        internal static Func<int, IHeroSDS> getHeroData;
-        internal static Func<int, ISpellSDS> getSpellData;
+        private static Func<int, IRoundSDS> getRoundData;
+        private static Func<int, ICardSDS> getCardData;
 
         public static int maxRoundNum { private set; get; }
 
-        private static int maxCanDoActionRoundNum;
+        public static int maxActionRound { private set; get; }
+
+        private static List<int> commandInitList;
 
         private static Random random = new Random();
 
@@ -29,21 +27,35 @@ namespace TimeWarLib
         {
             maxRoundNum = _maxRoundNum;
             getRoundData = _getRoundData;
+
             getCardData = _getCardData;
-            getHeroData = _getHeroData;
-            getSpellData = _getSpellData;
+
+            BattleCore.Init(_getCardData, _getHeroData, _getSpellData);
 
             for (int i = 0; i < maxRoundNum; i++)
             {
                 IRoundSDS sds = getRoundData(i);
 
-                if (sds.GetCanDoAcion() || sds.GetCanDoTimeActionRound().Length > 0)
+                if (sds.GetCanDoAcion())
                 {
-                    maxCanDoActionRoundNum++;
+                    if (!commandInitList.Contains(i))
+                    {
+                        commandInitList.Add(i);
+                    }
+
+                    maxActionRound = i;
                 }
-                else
+
+                for (int m = 0; m < sds.GetCanDoTimeActionRound().Length; m++)
                 {
-                    break;
+                    int tmpRoundNum = sds.GetCanDoTimeActionRound()[m];
+
+                    if (!commandInitList.Contains(tmpRoundNum))
+                    {
+                        commandInitList.Add(tmpRoundNum);
+                    }
+
+                    maxActionRound = i;
                 }
             }
         }
@@ -54,182 +66,297 @@ namespace TimeWarLib
         public List<int> mHandCards { private set; get; }
         public List<int> oHandCards { private set; get; }
 
+        private Hero[][] recHeroMap;
+
+        private int recRoundNum;
+
+        private State[] recStates;
+
         public Hero[][] heroMap { private set; get; }
 
         public int roundNum { private set; get; }
 
-        public int[][] commands { private set; get; }
+        public State[] states { private set; get; }
 
-        private ActionState actionState;
+        public Dictionary<int, int[]> commands { private set; get; }
+
+        private Dictionary<int, bool[]> commandsTime;
+
+        private State actionState;
+
+        private bool asyncWillOver;
 
         public Battle()
         {
             heroMap = new Hero[BattleConst.mapHeight][];
+
+            recHeroMap = new Hero[BattleConst.mapHeight][];
 
             for (int i = 0; i < BattleConst.mapHeight; i++)
             {
                 Hero[] arr = new Hero[BattleConst.mapWidth];
 
                 heroMap[i] = arr;
+
+                arr = new Hero[BattleConst.mapWidth];
+
+                recHeroMap[i] = arr;
             }
 
-            commands = new int[maxCanDoActionRoundNum][];
+            commands = new Dictionary<int, int[]>();
 
-            for (int i = 0; i < maxCanDoActionRoundNum; i++)
+            commandsTime = new Dictionary<int, bool[]>();
+
+            for (int i = 0; i < commandInitList.Count; i++)
             {
-                commands[i] = new int[BattleConst.mapHeight * 2];
+                int[] tmpCommands = new int[BattleConst.mapHeight * 2];
+
+                commands.Add(commandInitList[i], tmpCommands);
+
+                bool[] tmpCommandsTime = new bool[BattleConst.mapHeight * 2];
+
+                commandsTime.Add(commandInitList[i], tmpCommandsTime);
             }
+
+            states = new State[BattleConst.mapHeight];
+
+            recStates = new State[BattleConst.mapHeight];
         }
 
         public void ServerStart(int[] _mCards, int[] _oCards)
         {
-            roundNum = 0;
-
-            actionState = ActionState.NO_ACTIONED;
+            recRoundNum = roundNum = 0;
         }
 
-        private void ServerGetCommand(bool _isMine, int _cardID, int _posX)
+        private void ServerGetActionCommand(bool _isMine, int _roundNum, int _cardID, int _posX)
         {
-
-        }
-
-
-
-        private void BattleStart()
-        {
-            UseCard();
-
-            HeroMove();
-
-            HeroAttack();
-        }
-
-        private void UseCard()
-        {
-            int[] tmpCommands = commands[roundNum];
-
-            for (int i = 0; i < BattleConst.mapHeight; i++)
+            if ((actionState == State.O && _isMine) || (actionState == State.M && !_isMine))
             {
-                int cardID = tmpCommands[i];
+                throw new Exception("action error0!");
+            }
 
-                if (cardID != 0 && heroMap[i][0] == null)
+            IRoundSDS roundSDS = getRoundData(roundNum);
+
+            bool isNowAction = _roundNum == roundNum;
+
+            if (isNowAction)
+            {
+                if (!roundSDS.GetCanDoAcion())
                 {
-                    ICardSDS cardSDS = getCardData(cardID);
-
-                    if (cardSDS.GetIsHero())
-                    {
-                        Hero hero = new Hero(this, true, getHeroData(cardSDS.GetUseID()), i);
-
-                        heroMap[i][0] = hero;
-                    }
-                    else
-                    {
-                        CastSpell(true, cardSDS.GetUseID(), i);
-                    }
+                    throw new Exception("action error1!");
+                }
+            }
+            else
+            {
+                if (Array.IndexOf(roundSDS.GetCanDoTimeActionRound(), _roundNum) == -1)
+                {
+                    throw new Exception("action error2!");
                 }
             }
 
-            for (int i = 0; i < BattleConst.mapHeight; i++)
+            List<int> handCards = _isMine ? mHandCards : oHandCards;
+
+            int cardIndex = handCards.IndexOf(_cardID);
+
+            if (cardIndex == -1)
             {
-                int cardID = tmpCommands[BattleConst.mapHeight + i];
-
-                if (cardID != 0 && heroMap[i][BattleConst.mapWidth - 1] == null)
-                {
-                    ICardSDS cardSDS = getCardData(cardID);
-
-                    if (cardSDS.GetIsHero())
-                    {
-                        Hero hero = new Hero(this, false, getHeroData(cardSDS.GetUseID()), i);
-
-                        heroMap[i][BattleConst.mapWidth - 1] = hero;
-                    }
-                    else
-                    {
-                        CastSpell(false, cardSDS.GetUseID(), i);
-                    }
-                }
+                throw new Exception("action error3!");
             }
-        }
 
-        private void CastSpell(bool _isMine, int _id, int _posX)
-        {
+            int[] command = commands[_roundNum];
 
-        }
+            int posX = _isMine ? _posX : _posX + BattleConst.mapHeight;
 
-        private void HeroMove()
-        {
-            for (int i = 0; i < BattleConst.mapHeight; i++)
+            if (command[posX] != 0)
             {
-                bool isMineFirst = i % 2 == 0;
+                throw new Exception("action error4!");
+            }
 
-                if (isMineFirst)
+            ICardSDS cardSDS = getCardData(_cardID);
+
+            int power = GetPower(isNowAction, _isMine);
+
+            if (power < cardSDS.GetCost())
+            {
+                throw new Exception("action error5!");
+            }
+
+            command[posX] = _cardID;
+
+            commandsTime[_roundNum][posX] = isNowAction;
+
+            handCards.RemoveAt(cardIndex);
+        }
+
+        private void ServerGetEndCommand(bool _isMine)
+        {
+            IRoundSDS roundSDS = getRoundData(roundNum);
+
+            if ((actionState == State.O && _isMine) || (actionState == State.M && !_isMine))
+            {
+                throw new Exception("action error0!");
+            }
+
+            if (roundSDS.GetSyncAction())
+            {
+                if (actionState == State.N)
                 {
-                    for (int m = BattleConst.mapWidth - 2; m > -1; m--)
-                    {
-                        if (heroMap[i][m] != null)
-                        {
-                            heroMap[i][m].Move();
-                        }
-                    }
-
-                    for (int m = 1; m < BattleConst.mapWidth; m++)
-                    {
-                        if (heroMap[i][m] != null)
-                        {
-                            heroMap[i][m].Move();
-                        }
-                    }
+                    actionState = _isMine ? State.M : State.O;
                 }
                 else
                 {
-                    for (int m = 1; m < BattleConst.mapWidth; m++)
-                    {
-                        if (heroMap[i][m] != null)
-                        {
-                            heroMap[i][m].Move();
-                        }
-                    }
-
-                    for (int m = BattleConst.mapWidth - 2; m > -1; m--)
-                    {
-                        if (heroMap[i][m] != null)
-                        {
-                            heroMap[i][m].Move();
-                        }
-                    }
+                    RoundMoveForward();
                 }
+            }
+            else
+            {
+                CheckAsyncResult();
             }
         }
 
-        private void HeroAttack()
+        private int GetPower(bool _isNowPower, bool _isMine)
         {
-            for (int i = 0; i < BattleConst.mapHeight; i++)
-            {
-                for (int m = 0; m < BattleConst.mapWidth; m++)
-                {
-                    Hero hero = heroMap[i][m];
+            int power = 0;
 
-                    if (hero != null)
+            for (int i = 0; i < roundNum; i++)
+            {
+                IRoundSDS roundSDS = getRoundData(i);
+
+                power += _isNowPower ? roundSDS.GetPower() : roundSDS.GetTimePower();
+
+                int[] command;
+
+                bool b = commands.TryGetValue(i, out command);
+
+                if (b)
+                {
+                    bool[] commandTime = commandsTime[i];
+
+                    int start = _isMine ? 0 : BattleConst.mapHeight;
+
+                    for (int m = start; m < start + BattleConst.mapHeight; m++)
                     {
-                        hero.Attack();
+                        int cardID = command[m];
+
+                        if (cardID != 0 && commandTime[m] == _isNowPower)
+                        {
+                            ICardSDS cardSDS = getCardData(cardID);
+
+                            power -= cardSDS.GetCost();
+                        }
                     }
                 }
             }
 
+            return power;
+        }
+
+        private State GetBattleResult(State[] _states)
+        {
+            int m = 0;
+
+            int o = 0;
+
             for (int i = 0; i < BattleConst.mapHeight; i++)
             {
-                for (int m = 0; m < BattleConst.mapWidth; m++)
+                State state = _states[i];
+
+                if (state == State.M)
                 {
-                    Hero hero = heroMap[i][m];
+                    m++;
+                }
+                else if (state == State.O)
+                {
+                    o++;
+                }
+            }
 
-                    if (hero != null && hero.nowHp < 1)
+            if (m == o)
+            {
+                return State.N;
+            }
+            else if (m > o)
+            {
+                return State.M;
+            }
+            else
+            {
+                return State.O;
+            }
+        }
+
+        private void CheckAsyncResult()
+        {
+            State[] tmpState;
+
+            Hero[][] tmpHeroMap;
+
+            BattleCore.Start(commands, recStates, recHeroMap, recRoundNum, maxRoundNum, out tmpState, out tmpHeroMap);
+
+            State result = GetBattleResult(tmpState);
+
+            if (result == State.O)
+            {
+                if (actionState == State.M)
+                {
+                    BattleOver(State.O);
+                }
+                else
+                {
+                    if (asyncWillOver)
                     {
-                        hero.Die();
 
-                        heroMap[i][m] = null;
                     }
                 }
             }
+            else if (result == State.M)
+            {
+                if (actionState == State.O)
+                {
+                    BattleOver(State.M);
+                }
+                else
+                {
+
+                }
+            }
+            else
+            {
+
+            }
+        }
+
+        private void RoundMoveForward()
+        {
+            IRoundSDS roundSDS = getRoundData(roundNum);
+
+            if (roundSDS.GetSyncAction())
+            {
+               
+            }
+            else
+            {
+                
+            }
+        }
+
+        private void RefreshActionState()
+        {
+            IRoundSDS sds = getRoundData(roundNum);
+
+            if (sds.GetSyncAction())
+            {
+                actionState = State.N;
+            }
+            else
+            {
+
+            }
+        }
+
+        private void BattleOver(State _state)
+        {
+
         }
     }
 }

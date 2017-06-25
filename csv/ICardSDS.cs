@@ -1,11 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-
-
-public interface ICardSDS
+﻿public interface ICardSDS
 {
+    int GetCost();
     bool GetIsHero();
     int GetUseID();
 }
