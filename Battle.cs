@@ -126,6 +126,17 @@ namespace TimeWarLib
         public void ServerStart(int[] _mCards, int[] _oCards)
         {
             recRoundNum = roundNum = 0;
+
+            IRoundSDS roundSDS = getRoundData(roundNum);
+
+            if (roundSDS.GetSyncAction())
+            {
+                actionState = State.N;
+            }
+            else
+            {
+                actionState = random.NextDouble() < 0.5 ? State.M : State.O;
+            }
         }
 
         private void ServerGetActionCommand(bool _isMine, int _roundNum, int _cardID, int _posX)
@@ -199,14 +210,7 @@ namespace TimeWarLib
 
             if (roundSDS.GetSyncAction())
             {
-                if (actionState == State.N)
-                {
-                    actionState = _isMine ? State.M : State.O;
-                }
-                else
-                {
-                    RoundMoveForward();
-                }
+                CheckSyncResult(_isMine);
             }
             else
             {
@@ -251,7 +255,93 @@ namespace TimeWarLib
             return power;
         }
 
-        private State GetBattleResult(State[] _states)
+        private void CheckSyncResult(bool _isMine)
+        {
+            if (actionState == State.N)
+            {
+                actionState = _isMine ? State.M : State.O;
+            }
+            else
+            {
+                RoundMoveForward();
+
+                RefreshActionState();
+            }
+        }
+
+        private void CheckAsyncResult()
+        {
+            State result = GetBattleResult();
+
+            if (result == State.O)
+            {
+                if (actionState == State.M)
+                {
+                    BattleOver(State.O);
+                }
+                else
+                {
+                    if (asyncWillOver)
+                    {
+                        RoundMoveForward();
+
+                        RefreshActionState();
+                    }
+                    else
+                    {
+                        asyncWillOver = true;
+
+                        actionState = State.M;
+                    }
+                }
+            }
+            else if (result == State.M)
+            {
+                if (actionState == State.O)
+                {
+                    BattleOver(State.M);
+                }
+                else
+                {
+                    if (asyncWillOver)
+                    {
+                        RoundMoveForward();
+
+                        RefreshActionState();
+                    }
+                    else
+                    {
+                        asyncWillOver = true;
+
+                        actionState = State.O;
+                    }
+                }
+            }
+            else
+            {
+                if (asyncWillOver)
+                {
+                    RoundMoveForward();
+
+                    RefreshActionState();
+                }
+                else
+                {
+                    asyncWillOver = true;
+
+                    if (actionState == State.M)
+                    {
+                        actionState = State.O;
+                    }
+                    else
+                    {
+                        actionState = State.M;
+                    }
+                }
+            }
+        }
+
+        private State GetStatesResult(State[] _states)
         {
             int m = 0;
 
@@ -285,73 +375,100 @@ namespace TimeWarLib
             }
         }
 
-        private void CheckAsyncResult()
+        private void RoundMoveForward()
         {
-            State[] tmpState;
+            roundNum++;
 
-            Hero[][] tmpHeroMap;
+            int targetRoundNum = int.MaxValue;
 
-            BattleCore.Start(commands, recStates, recHeroMap, recRoundNum, maxRoundNum, out tmpState, out tmpHeroMap);
-
-            State result = GetBattleResult(tmpState);
-
-            if (result == State.O)
+            for (int i = roundNum; i < maxRoundNum; i++)
             {
-                if (actionState == State.M)
-                {
-                    BattleOver(State.O);
-                }
-                else
-                {
-                    if (asyncWillOver)
-                    {
+                IRoundSDS roundSDS = getRoundData(i);
 
+                if (roundSDS.GetCanDoAcion())
+                {
+                    if (i < targetRoundNum)
+                    {
+                        targetRoundNum = i;
+                    }
+                }
+
+                for (int m = 0; m < roundSDS.GetCanDoTimeActionRound().Length; m++)
+                {
+                    int tmpRoundNum = roundSDS.GetCanDoTimeActionRound()[m];
+
+                    if (tmpRoundNum < targetRoundNum)
+                    {
+                        targetRoundNum = tmpRoundNum;
                     }
                 }
             }
-            else if (result == State.M)
-            {
-                if (actionState == State.O)
-                {
-                    BattleOver(State.M);
-                }
-                else
-                {
 
-                }
-            }
-            else
+            if (targetRoundNum > recRoundNum)
             {
+                State[] resultStates;
 
-            }
-        }
+                Hero[][] resultHeroMap;
 
-        private void RoundMoveForward()
-        {
-            IRoundSDS roundSDS = getRoundData(roundNum);
+                BattleCore.Start(commands, recStates, recHeroMap, recRoundNum, targetRoundNum, out resultStates, out resultHeroMap);
 
-            if (roundSDS.GetSyncAction())
-            {
-               
-            }
-            else
-            {
-                
+                recRoundNum = targetRoundNum;
+
+                recStates = resultStates;
+
+                recHeroMap = resultHeroMap;
             }
         }
 
         private void RefreshActionState()
         {
-            IRoundSDS sds = getRoundData(roundNum);
+            IRoundSDS roundSDS = getRoundData(roundNum);
 
-            if (sds.GetSyncAction())
+            if (roundSDS.GetSyncAction())
             {
                 actionState = State.N;
             }
             else
             {
+                IRoundSDS lastRoundSDS = getRoundData(roundNum - 1);
 
+                if (lastRoundSDS.GetSyncAction())
+                {
+                    State result = GetBattleResult();
+
+                    if (result == State.M)
+                    {
+                        actionState = State.O;
+                    }
+                    else if (result == State.O)
+                    {
+                        actionState = State.M;
+                    }
+                    else
+                    {
+                        actionState = random.NextDouble() < 0.5 ? State.M : State.O;
+                    }
+                }
+                else
+                {
+                    asyncWillOver = false;
+
+                    actionState = actionState == State.M ? State.O : State.M;
+                }
             }
+        }
+
+        private State GetBattleResult()
+        {
+            State[] resultStates;
+
+            Hero[][] resultHeroMap;
+
+            BattleCore.Start(commands, recStates, recHeroMap, recRoundNum, maxRoundNum, out resultStates, out resultHeroMap);
+
+            State result = GetStatesResult(resultStates);
+
+            return result;
         }
 
         private void BattleOver(State _state)
