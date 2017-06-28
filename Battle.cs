@@ -17,8 +17,6 @@ namespace TimeWarLib
 
         public static int maxRoundNum { private set; get; }
 
-        public static int maxActionRound { private set; get; }
-
         private static List<int> commandInitList;
 
         private static Random random = new Random();
@@ -42,8 +40,6 @@ namespace TimeWarLib
                     {
                         commandInitList.Add(i);
                     }
-
-                    maxActionRound = i;
                 }
 
                 for (int m = 0; m < sds.GetCanDoTimeActionRound().Length; m++)
@@ -54,8 +50,6 @@ namespace TimeWarLib
                     {
                         commandInitList.Add(tmpRoundNum);
                     }
-
-                    maxActionRound = i;
                 }
             }
         }
@@ -72,15 +66,11 @@ namespace TimeWarLib
 
         private State[] recStates;
 
-        public Hero[][] heroMap { private set; get; }
-
         public int roundNum { private set; get; }
-
-        public State[] states { private set; get; }
 
         public Dictionary<int, int[]> commands { private set; get; }
 
-        private Dictionary<int, bool[]> commandsTime;
+        private Dictionary<int, int[]> commandsTime;
 
         private State actionState;
 
@@ -88,24 +78,18 @@ namespace TimeWarLib
 
         public Battle()
         {
-            heroMap = new Hero[BattleConst.mapHeight][];
-
             recHeroMap = new Hero[BattleConst.mapHeight][];
 
             for (int i = 0; i < BattleConst.mapHeight; i++)
             {
                 Hero[] arr = new Hero[BattleConst.mapWidth];
 
-                heroMap[i] = arr;
-
-                arr = new Hero[BattleConst.mapWidth];
-
                 recHeroMap[i] = arr;
             }
 
             commands = new Dictionary<int, int[]>();
 
-            commandsTime = new Dictionary<int, bool[]>();
+            commandsTime = new Dictionary<int, int[]>();
 
             for (int i = 0; i < commandInitList.Count; i++)
             {
@@ -113,12 +97,10 @@ namespace TimeWarLib
 
                 commands.Add(commandInitList[i], tmpCommands);
 
-                bool[] tmpCommandsTime = new bool[BattleConst.mapHeight * 2];
+                int[] tmpCommandsTime = new int[BattleConst.mapHeight * 2];
 
                 commandsTime.Add(commandInitList[i], tmpCommandsTime);
             }
-
-            states = new State[BattleConst.mapHeight];
 
             recStates = new State[BattleConst.mapHeight];
         }
@@ -194,7 +176,7 @@ namespace TimeWarLib
 
             command[posX] = _cardID;
 
-            commandsTime[_roundNum][posX] = isNowAction;
+            commandsTime[_roundNum][posX] = roundNum;
 
             handCards.RemoveAt(cardIndex);
         }
@@ -234,7 +216,7 @@ namespace TimeWarLib
 
                 if (b)
                 {
-                    bool[] commandTime = commandsTime[i];
+                    int[] commandTime = commandsTime[i];
 
                     int start = _isMine ? 0 : BattleConst.mapHeight;
 
@@ -242,7 +224,7 @@ namespace TimeWarLib
                     {
                         int cardID = command[m];
 
-                        if (cardID != 0 && commandTime[m] == _isNowPower)
+                        if (cardID != 0 && (commandTime[m] == i) == _isNowPower)
                         {
                             ICardSDS cardSDS = getCardData(cardID);
 
@@ -264,8 +246,6 @@ namespace TimeWarLib
             else
             {
                 RoundMoveForward();
-
-                RefreshActionState();
             }
         }
 
@@ -284,8 +264,6 @@ namespace TimeWarLib
                     if (asyncWillOver)
                     {
                         RoundMoveForward();
-
-                        RefreshActionState();
                     }
                     else
                     {
@@ -306,8 +284,6 @@ namespace TimeWarLib
                     if (asyncWillOver)
                     {
                         RoundMoveForward();
-
-                        RefreshActionState();
                     }
                     else
                     {
@@ -322,8 +298,6 @@ namespace TimeWarLib
                 if (asyncWillOver)
                 {
                     RoundMoveForward();
-
-                    RefreshActionState();
                 }
                 else
                 {
@@ -404,19 +378,28 @@ namespace TimeWarLib
                 }
             }
 
-            if (targetRoundNum > recRoundNum)
+            if (targetRoundNum == int.MaxValue)
             {
-                State[] resultStates;
+                BattleOver(GetBattleResult());
+            }
+            else
+            {
+                if (targetRoundNum > recRoundNum)
+                {
+                    State[] resultStates;
 
-                Hero[][] resultHeroMap;
+                    Hero[][] resultHeroMap;
 
-                BattleCore.Start(commands, recStates, recHeroMap, recRoundNum, targetRoundNum, out resultStates, out resultHeroMap);
+                    BattleCore.Start(commands, recStates, recHeroMap, recRoundNum, targetRoundNum, out resultStates, out resultHeroMap);
 
-                recRoundNum = targetRoundNum;
+                    recRoundNum = targetRoundNum;
 
-                recStates = resultStates;
+                    recStates = resultStates;
 
-                recHeroMap = resultHeroMap;
+                    recHeroMap = resultHeroMap;
+                }
+
+                RefreshActionState();
             }
         }
 
@@ -453,7 +436,7 @@ namespace TimeWarLib
                 {
                     asyncWillOver = false;
 
-                    actionState = actionState == State.M ? State.O : State.M;
+                    //actionState = actionState == State.M ? State.O : State.M;
                 }
             }
         }
@@ -472,6 +455,11 @@ namespace TimeWarLib
         }
 
         private void BattleOver(State _state)
+        {
+
+        }
+
+        public void ServerRefreshData(bool _isMine)
         {
 
         }
