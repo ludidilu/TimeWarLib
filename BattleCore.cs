@@ -20,6 +20,37 @@ namespace TimeWarLib
             getSpellData = _getSpellData;
         }
 
+        internal static void Start(Dictionary<int, int[]> _commands, State[] _states, Hero[][] _heroMap, int _roundNum, int _targetRoundNum)
+        {
+            for (int i = 0; i < BattleConst.mapHeight; i++)
+            {
+                for (int m = 0; m < BattleConst.mapWidth; m++)
+                {
+                    Hero hero = _heroMap[i][m];
+
+                    if (hero != null)
+                    {
+                        heroDic.Add(hero.pos, hero);
+                    }
+                }
+            }
+
+            for (int i = _roundNum; i < _targetRoundNum; i++)
+            {
+                UseCard(i, _states, _commands, _heroMap);
+
+                HeroMove(_states, _heroMap);
+
+                HeroAttack(_heroMap);
+
+                HeroMove(_states, _heroMap);
+
+                HeroRecover();
+            }
+
+            heroDic.Clear();
+        }
+
         internal static void Start(Dictionary<int, int[]> _commands, State[] _states, Hero[][] _heroMap, int _roundNum, int _targetRoundNum, out State[] _statesResult, out Hero[][] _heroMapReslt)
         {
             _statesResult = new State[BattleConst.mapHeight];
@@ -48,8 +79,6 @@ namespace TimeWarLib
                         Hero newHero = hero.Clone();
 
                         heroArr[m] = newHero;
-
-                        heroDic.Add(newHero.pos, newHero);
                     }
                     else
                     {
@@ -58,20 +87,7 @@ namespace TimeWarLib
                 }
             }
 
-            for (int i = _roundNum; i < _targetRoundNum; i++)
-            {
-                UseCard(i, _statesResult, _commands, _heroMapReslt);
-
-                HeroMove(_statesResult, _heroMapReslt);
-
-                HeroAttack(_heroMapReslt);
-
-                HeroMove(_statesResult, _heroMapReslt);
-
-                HeroRecover();
-            }
-
-            heroDic.Clear();
+            Start(_commands, _statesResult, _heroMapReslt, _roundNum, _targetRoundNum);
         }
 
         private static void UseCard(int _roundNum, State[] _states, Dictionary<int, int[]> _commands, Hero[][] _heroMap)

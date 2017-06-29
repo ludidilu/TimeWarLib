@@ -57,8 +57,8 @@ namespace TimeWarLib
         private List<int> mCards;
         private List<int> oCards;
 
-        public List<int> mHandCards { private set; get; }
-        public List<int> oHandCards { private set; get; }
+        public Dictionary<int, int> mHandCards { private set; get; }
+        public Dictionary<int, int> oHandCards { private set; get; }
 
         private Hero[][] recHeroMap;
 
@@ -72,7 +72,7 @@ namespace TimeWarLib
 
         private Dictionary<int, int[]> commandsTime;
 
-        private State actionState;
+        public State actionState { private set; get; }
 
         private bool asyncWillOver;
 
@@ -121,7 +121,7 @@ namespace TimeWarLib
             }
         }
 
-        private void ServerGetActionCommand(bool _isMine, int _roundNum, int _cardID, int _posX)
+        private void ServerGetActionCommand(bool _isMine, int _roundNum, int _cardUid, int _posX)
         {
             if ((actionState == State.O && _isMine) || (actionState == State.M && !_isMine))
             {
@@ -147,11 +147,11 @@ namespace TimeWarLib
                 }
             }
 
-            List<int> handCards = _isMine ? mHandCards : oHandCards;
+            Dictionary<int, int> handCards = _isMine ? mHandCards : oHandCards;
 
-            int cardIndex = handCards.IndexOf(_cardID);
+            int cardID;
 
-            if (cardIndex == -1)
+            if (!handCards.TryGetValue(_cardUid, out cardID))
             {
                 throw new Exception("action error3!");
             }
@@ -165,7 +165,7 @@ namespace TimeWarLib
                 throw new Exception("action error4!");
             }
 
-            ICardSDS cardSDS = getCardData(_cardID);
+            ICardSDS cardSDS = getCardData(cardID);
 
             int power = GetPower(isNowAction, _isMine);
 
@@ -174,11 +174,11 @@ namespace TimeWarLib
                 throw new Exception("action error5!");
             }
 
-            command[posX] = _cardID;
+            command[posX] = cardID;
 
             commandsTime[_roundNum][posX] = roundNum;
 
-            handCards.RemoveAt(cardIndex);
+            handCards.Remove(_cardUid);
         }
 
         private void ServerGetEndCommand(bool _isMine)
@@ -386,17 +386,9 @@ namespace TimeWarLib
             {
                 if (targetRoundNum > recRoundNum)
                 {
-                    State[] resultStates;
-
-                    Hero[][] resultHeroMap;
-
-                    BattleCore.Start(commands, recStates, recHeroMap, recRoundNum, targetRoundNum, out resultStates, out resultHeroMap);
+                    BattleCore.Start(commands, recStates, recHeroMap, recRoundNum, targetRoundNum);
 
                     recRoundNum = targetRoundNum;
-
-                    recStates = resultStates;
-
-                    recHeroMap = resultHeroMap;
                 }
 
                 RefreshActionState();
