@@ -17,10 +17,11 @@ namespace TimeWarLib
 
         public static int maxRoundNum { private set; get; }
 
-        private static List<int> commandInitList;
+        private static List<int> commandInitList = new List<int>();
 
+#if !CLIENT
         private static Random random = new Random();
-
+#endif
         public static void Init(Func<int, IRoundSDS> _getRoundData, Func<int, ICardSDS> _getCardData, Func<int, IHeroSDS> _getHeroData, Func<int, ISpellSDS> _getSpellData)
         {
             getRoundData = _getRoundData;
@@ -90,6 +91,8 @@ namespace TimeWarLib
 
         private int cardUid = 0;
 
+        private Queue<int> randomList = new Queue<int>();
+
         public Battle()
         {
             recHeroMap = new Hero[BattleConst.mapHeight][];
@@ -125,6 +128,27 @@ namespace TimeWarLib
             oHandCards = new Dictionary<int, int>();
         }
 
+        private int GetRandomValue(int _max)
+        {
+#if !CLIENT
+            int result = random.Next(_max);
+
+            randomList.Enqueue(result);
+#else
+            int result = randomList.Dequeue();
+#endif
+            return result;
+        }
+
+        private int GetCardUid()
+        {
+            cardUid++;
+
+            return cardUid;
+        }
+
+#if !CLIENT
+
         public void ServerStart(int[] _mCards, int[] _oCards)
         {
             recRoundNum = roundNum = 0;
@@ -137,43 +161,38 @@ namespace TimeWarLib
             }
             else
             {
-                actionState = random.NextDouble() < 0.5 ? State.M : State.O;
+                actionState = random.Next(1) == 0 ? State.M : State.O;
             }
 
-            for (int i = 0; i < _mCards.Length; i++)
+            mCards = new List<int>(_mCards);
+
+            oCards = new List<int>(_oCards);
+
+            for (int i = 0; i < BattleConst.defaultHandCardsNum; i++)
             {
-                mCards.Add(_mCards[i]);
-            }
+                if (mCards.Count > 0)
+                {
+                    int index = random.Next(mCards.Count);
 
-            for (int i = 0; i < _oCards.Length; i++)
-            {
-                oCards.Add(_oCards[i]);
-            }
+                    mHandCards.Add(GetCardUid(), mCards[index]);
 
-            for (int i = 0; i < BattleConst.defaultHandCardsNum && mCards.Count > 0; i++)
-            {
-                int index = random.Next(mCards.Count);
+                    mCards.RemoveAt(index);
+                }
 
-                mHandCards.Add(GetCardUid(), mCards[index]);
+                if (oCards.Count > 0)
+                {
+                    int index = random.Next(oCards.Count);
 
-                mCards.RemoveAt(index);
-            }
+                    oHandCards.Add(GetCardUid(), oCards[index]);
 
-            for (int i = 0; i < BattleConst.defaultHandCardsNum && oCards.Count > 0; i++)
-            {
-                int index = random.Next(oCards.Count);
-
-                oHandCards.Add(GetCardUid(), oCards[index]);
-
-                oCards.RemoveAt(index);
+                    oCards.RemoveAt(index);
+                }
             }
         }
 
-        private int GetCardUid()
+        public void ServerRefreshData(bool _isMine)
         {
-            cardUid++;
 
-            return cardUid;
         }
 
         private void ServerGetActionCommand(bool _isMine, int _roundNum, int _cardUid, int _posX)
@@ -254,6 +273,7 @@ namespace TimeWarLib
                 CheckAsyncResult();
             }
         }
+#endif
 
         private int GetPower(bool _isNowPower, bool _isMine)
         {
@@ -476,14 +496,14 @@ namespace TimeWarLib
                     }
                     else
                     {
-                        actionState = random.NextDouble() < 0.5 ? State.M : State.O;
+                        actionState = GetRandomValue(1) == 0 ? State.M : State.O;
                     }
                 }
                 else
                 {
                     asyncWillOver = false;
 
-                    //actionState = actionState == State.M ? State.O : State.M;
+                    actionState = actionState == State.M ? State.O : State.M;
                 }
             }
         }
@@ -534,9 +554,5 @@ namespace TimeWarLib
             }
         }
 
-        public void ServerRefreshData(bool _isMine)
-        {
-
-        }
     }
 }
